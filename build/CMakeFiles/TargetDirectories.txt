@@ -1,0 +1,3 @@
+/home/k06/Desktop/23E/build/CMakeFiles/23E.dir
+/home/k06/Desktop/23E/build/CMakeFiles/edit_cache.dir
+/home/k06/Desktop/23E/build/CMakeFiles/rebuild_cache.dir

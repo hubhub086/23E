@@ -3,8 +3,8 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
-#include <NvInfer.h>
-#include <cuda_runtime_api.h>
+// #include <NvInfer.h>
+// #include <cuda_runtime_api.h>
 #include "opencv2/core.hpp"
 #include "opencv2/opencv.hpp"
 
