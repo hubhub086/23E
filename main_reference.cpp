@@ -63,7 +63,7 @@ int main()
     capture.set(CAP_PROP_FPS,60);
     capture.set(CAP_PROP_BUFFERSIZE, 1);
     capture.set(CAP_PROP_AUTO_WB, 1);
-    // capture.set(CAP_PROP_WB_TEMPERATURE, 4000);
+    capture.set(CAP_PROP_WB_TEMPERATURE, 120);
     cout << "CAP_PROP_FPS" << capture.get(CAP_PROP_FPS) << endl;
     cout << "CAP_PROP_BUFFERSIZE=" << capture.get(CAP_PROP_BUFFERSIZE) << endl;
     cout << "CAP_PROP_AUTO_WB=" << capture.get(CAP_PROP_AUTO_WB) << endl;

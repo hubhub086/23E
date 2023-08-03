@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
- #include <cstdlib>
+#include <cstdlib>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -15,9 +15,12 @@
 
 #include "uart.h"
 
+using namespace std;
+
 //全局变量
 char receive_buffer[128];
 int UART_fd;
+extern int status;
  
 /*
 * 打开串口
@@ -181,6 +184,44 @@ void* receive_thread(void* ptr)
         datanum =  read(UART_fd,  receive_buffer, sizeof(receive_buffer));
         if(datanum) {
             printf("content:%s\n",receive_buffer);
+            if (strcmp(receive_buffer, "Init") == 0)
+            {
+                status = 0;  // 软复位，进入标定阶段
+            }
+            else if (strcmp(receive_buffer, "mark") == 0)
+            {
+                status = 10;  // 确认标定并进入选题状态
+            }
+            else if (strcmp(receive_buffer, "b1") == 0)
+            {
+                status = 11;  // 基础一
+            }
+            else if (strcmp(receive_buffer, "b2") == 0)
+            {
+                status = 12;  // 基础二
+            }
+            else if (strcmp(receive_buffer, "b3") == 0)
+            {
+                status = 13;  // 基础三
+            }
+            else if (strcmp(receive_buffer, "b4") == 0)
+            {
+                status = 14;  // 基础四
+            }
+            else if (strcmp(receive_buffer, "h1") == 0)
+            {
+                status = 15;  // 基础四
+            }
+            else if (strcmp(receive_buffer, "h2") == 0)
+            {
+                status = 16;  // 基础四
+            }
+            else if (strcmp(receive_buffer, "enda") == 0)
+            {
+                status = 10;  // 基础四
+            }
+            receive_buffer[strlen(receive_buffer)] = 'a';
+            uart_send(UART_fd, receive_buffer);
             memset(receive_buffer, 0, sizeof(receive_buffer));
         }
     }

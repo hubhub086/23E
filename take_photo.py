@@ -8,7 +8,7 @@ if __name__ =='__main__':
     if not os.path.exists(save_folder):
         os.mkdir(save_folder)
         print('makedir: {}'.format(save_folder))
-    cap = cv2.VideoCapture(1,cv2.CAP_V4L2)
+    cap = cv2.VideoCapture(2,cv2.CAP_V4L2)
     cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1.0)
     cap.set(cv2.CAP_PROP_EXPOSURE, 60)
     # cap.set(cv2.CAP_PROP_BRIGHTNESS, 10)
@@ -24,7 +24,8 @@ if __name__ =='__main__':
     key = False
     while 1:
         _, frame = cap.read()
-        frame = frame[117:294,290:532]
+        # frame = frame[117:294,290:532]
+        
         cv2.imshow("result", frame)
 
         k = cv2.waitKey(1)

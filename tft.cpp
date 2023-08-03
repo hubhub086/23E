@@ -20,8 +20,8 @@ using namespace std;
 using namespace GPIO;
 using namespace cv;
 
-int screenWidth = 240; //屏幕长度
-int screenHeight = 240; //屏幕宽度
+int screenWidth = 480; //屏幕长度
+int screenHeight = 320; //屏幕宽度
 int PinDC = 22; //GPIO.BOARD引脚模式，第18号引脚
 int PinReset = 18;  //GPIO.BOARD引脚模式，第22号引脚
 int PinLED = 12; //GPIO.BOARD引脚模式，第12号引脚
@@ -110,6 +110,51 @@ void st7789_init(SPI* spi)
     sendSignalCommand(spi, &command);
     command = 0x11;
     sendSignalCommand(spi, &command);
+    command = 0x29;
+    sendSignalCommand(spi, &command);
+    cout << "finish sending" << endl;
+}
+
+void ILI9486_init(SPI* spi)
+{
+    GPIO::output(PinLED, 1);
+    LCDReset();
+    uint8_t command = 0xF1;
+    uint8_t bytes[6] = {0x36,0x04,0x00,0x3c,0x0F,0x8F};
+    sendCommand(spi, &command, bytes, sizeof(bytes));
+    command = 0xF2;
+    uint8_t bytes1[9] = {0x18,0xA3,0x12,0x02,0xB2,0x12,0xFF,0x10,0x00};
+    sendCommand(spi, &command, bytes1, sizeof(bytes1));
+    command = 0xF8;
+    uint8_t bytes2[2] = {0x21,0x04};
+    sendCommand(spi, &command, bytes2, sizeof(bytes2));
+    command = 0xF9;
+    uint8_t bytes3[2] = {0x00, 0x08};
+    sendCommand(spi, &command, bytes3, sizeof(bytes3));
+    command = 0xB4;
+    uint8_t bytes4[1] = {0x00};
+    sendCommand(spi, &command, bytes4, sizeof(bytes4));
+    command = 0xC1;
+    uint8_t bytes5[1] = {0x47};
+    sendCommand(spi, &command, bytes5, sizeof(bytes5));
+    command = 0xC5;
+    uint8_t bytes6[4] = {0x00,0xAF,0x80,0x00};
+    sendCommand(spi, &command, bytes6, sizeof(bytes6));
+    command = 0xE0;
+    uint8_t bytes11[15] = {0x0F,0x1F,0x1C,0x0C,0x0F,0x08,0x48,0x98,0x37,0x0A,0x13,0x04,0x11,0x0D,0x00};
+    sendCommand(spi, &command, bytes11, sizeof(bytes11));
+    command = 0xE1;
+    uint8_t bytes12[15] = {0x0F,0x32,0x2E,0x0B,0x0D,0x05,0x47,0x75,0x37,0x06,0x10,0x03,0x24,0x20,0x00};
+    sendCommand(spi, &command, bytes12, sizeof(bytes12));
+    command = 0x3A;
+    uint8_t bytes13[1] = {0x66};
+    sendCommand(spi, &command, bytes13, sizeof(bytes13));
+    command = 0x11;
+    sendSignalCommand(spi, &command);
+    command = 0x36;
+    uint8_t bytes14[1] = {0x29};
+    sendCommand(spi, &command, bytes14, sizeof(bytes14));
+    usleep(1000*12);
     command = 0x29;
     sendSignalCommand(spi, &command);
     cout << "finish sending" << endl;
