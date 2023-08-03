@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
+#include <math.h>
 #include "opencv2/core.hpp"
 #include "opencv2/opencv.hpp"
 
@@ -24,6 +25,7 @@ vector<Point> get_blobs_center(Mat img, int min_area, int max_area);
 vector<Point> get_map_pos(Mat* img);
 vector<Point> get_routh_point(vector<Point> map, int subPointNum);
 vector<Point> get_black_point(Mat img, int min_area, int max_area);
+int get_closest_point(vector<Point> points, Point start);
 
 Point zero = {272,288};
 vector<Point> map_positions;
@@ -213,8 +215,13 @@ int main()
             // 计算路径上所有细分点
             if (globalRouth.size() == 0)
             {
+                int start_point_idx = get_closest_point(map_border, now); 
                 // globalRouth = get_routh_point(map_border, subPointNum);
-                globalRouth = map_border;
+                for (int i=0; i < map_border.size(); i++)
+                {
+                    globalRouth.push_back(map_border[(start_point_idx+i)%map_border.size()]);
+                }
+                // globalRouth = map_border;
                 globalRouth.push_back(map_border[0]);
             }
             else{
@@ -267,25 +274,33 @@ int main()
             }
             else
             {
-                // get_black_point(frame_warp, 5000, 80000);
+                // 检测红色激光点位置并发送偏差
+                split(frame_warp, channels);
+                red = channels.at(2);
+                green = channels.at(1);
+
+                red_mask = (max(red-green, 0)) * 2;
+                threshold(red_mask, red_out, 152, 255, THRESH_BINARY);
+                dilate(red_out, red_out, kernel);
+
+                Point now = get_white_center(&red_out);
+
                 if (globalRouth.size() == 0)
                 {
-                    globalRouth = get_routh_point(blackPoint, subPointNum);
+                    int start_point_idx = get_closest_point(blackPoint, now); 
+                    // globalRouth = get_routh_point(map_border, subPointNum);
+                    vector<Point> black_sort;
+                    for (int i=0; i < blackPoint.size(); i++)
+                    {
+                        black_sort.push_back(blackPoint[(start_point_idx+i)%blackPoint.size()]);
+                    }
+                    globalRouth = get_routh_point(black_sort, subPointNum);
                     // globalRouth = blackPoint;
                     // globalRouth.push_back(blackPoint[0]);
                 }
                 else{
                     // cout << globalRouth.size() << endl;
-                    // 检测红色激光点位置并发送偏差
-                    split(frame_warp, channels);
-                    red = channels.at(2);
-                    green = channels.at(1);
-
-                    red_mask = (max(red-green, 0)) * 2;
-                    threshold(red_mask, red_out, 152, 255, THRESH_BINARY);
-                    dilate(red_out, red_out, kernel);
-
-                    Point now = get_white_center(&red_out);
+                    
                     Point tar = globalRouth[tempTarCount];
                     Point offset = tar - now;
 
@@ -406,6 +421,17 @@ int main()
             break;
         }
     }
+}
+
+int get_closest_point(vector<Point> points, Point start)
+{
+    vector<double> distance;
+    for(int i=0; i < points.size(); i++)
+    {
+        distance.push_back(sqrtf((start.x-points[i].x)*(start.x-points[i].x)+(start.y-points[i].y)*(start.y-points[i].y)));
+    }
+    int smallest = min_element(distance.begin(), distance.end()) - distance.begin();
+    return smallest;
 }
 
 vector<Point> get_black_point(Mat img, int min_area, int max_area)
@@ -534,7 +560,7 @@ vector<Point> get_blobs_center(Mat img, int min_area, int max_area)
 	for (int i = 0; i < contours.size(); i++)
 	{
 		int area = contourArea(contours[i]);
-        drawContours(frame, contours, i, Scalar(0, 255, 120), 2, 8, hierarchy);
+        // drawContours(frame, contours, i, Scalar(0, 255, 120), 2, 8, hierarchy);
 		if (area > min_area && area < max_area)
 		{
 			Rect bound = boundingRect(contours[i]);
@@ -565,7 +591,7 @@ vector<Point> get_blobs_center(Mat img, int min_area, int max_area)
 vector<Point> get_map_pos(Mat* img)
 {
 	vector<Point> rec_pos_sort;
-	vector<Point> rec_pos = get_blobs_center(*img, 5, 4000);
+	vector<Point> rec_pos = get_blobs_center(*img, 500, 4000);
 
 	if (rec_pos.size() == 4)
 	{
