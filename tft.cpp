@@ -1,32 +1,19 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-// for spi devices
-#include <spidev_lib++.h>
-// for delay function.
-#include <chrono>
-#include <unistd.h> 
-#include <thread>
-// for signal handling
-#include <signal.h>
-#include <JetsonGPIO.h>
-// for img process
-#include "opencv2/core.hpp"
-#include "opencv2/opencv.hpp"
 
-#include <time.h>
+#include "tft.h"
 
 using namespace std;
 using namespace GPIO;
 using namespace cv;
 
-int screenWidth = 480; //屏幕长度
-int screenHeight = 320; //屏幕宽度
+int screenWidth = 240; //屏幕长度
+int screenHeight = 240; //屏幕宽度
 int PinDC = 22; //GPIO.BOARD引脚模式，第18号引脚
 int PinReset = 18;  //GPIO.BOARD引脚模式，第22号引脚
 int PinLED = 12; //GPIO.BOARD引脚模式，第12号引脚
+vector<Mat> show_buffer;
 
 spi_config_t spi_config;
+SPI *mySPI = NULL;
 uint8_t tx_buffer[32];
 uint8_t rx_buffer[32];
 
@@ -165,7 +152,7 @@ void setWindow(SPI* spi)
 {
     uint8_t command = 0x2A;
     sendSignalCommand(spi, &command);
-    uint8_t bytes[2] = {0>>8,0};
+    uint8_t bytes[2] = {0>>8,0x00FF&0};
     sendManyBytes(spi, bytes, sizeof(bytes));
     uint8_t x1 = screenHeight - 1;
     bytes[0] = x1>>8; bytes[1] = x1;
@@ -239,6 +226,40 @@ void drawImg16BitColor(SPI* spi, Mat img)
     }
     double Times=(double)(clock()-start)/CLOCKS_PER_SEC;
     cout << Times <<"send finish" << endl;
+}
+
+void lcd_init()
+{
+    GPIO::setmode(BOARD);
+    GPIO::setwarnings(false);
+    GPIO::setup(PinDC, GPIO::OUT);
+    GPIO::setup(PinReset, GPIO::OUT);
+    GPIO::setup(PinLED, GPIO::OUT);
+    spi_config.mode=0;
+    spi_config.speed=24000000;
+    spi_config.delay=0;
+    spi_config.bits_per_word=8;
+
+    mySPI=new SPI("/dev/spidev0.0",&spi_config);
+    cout << mySPI->begin() << endl;
+    st7789_init(mySPI);
+    setWindow(mySPI);
+}
+
+void* lcd_show_process(void* ptr)
+{
+    Mat img;
+    cout << "get in lcd" << endl;
+    while(1)
+    {
+        if (show_buffer.size() > 0)
+        {
+            img = show_buffer[0];
+            resize(img, img, Size(240, 240));
+            drawImg16BitColor(mySPI, img);
+	    show_buffer.clear();
+        }
+    }
 }
 
 

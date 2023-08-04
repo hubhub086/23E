@@ -188,6 +188,10 @@ void* receive_thread(void* ptr)
             {
                 status = 0;  // 软复位，进入标定阶段
             }
+            else if (strcmp(receive_buffer, "nInit") == 0)
+            {
+                status = 10;
+            }
             else if (strcmp(receive_buffer, "mark") == 0)
             {
                 status = 10;  // 确认标定并进入选题状态

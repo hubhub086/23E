@@ -6,7 +6,7 @@
 #include <math.h>
 #include "opencv2/core.hpp"
 #include "opencv2/opencv.hpp"
-
+#include "tft.h"
 #include "uart.h"
 
 using namespace std;
@@ -26,6 +26,7 @@ vector<Point> get_map_pos(Mat* img);
 vector<Point> get_routh_point(vector<Point> map, int subPointNum);
 vector<Point> get_black_point(Mat img, int min_area, int max_area);
 int get_closest_point(vector<Point> points, Point start);
+Point getTransformPoint(Point pt_origin, Mat warpMatrix);
 
 Point zero = {272,288};
 vector<Point> map_positions;
@@ -37,11 +38,12 @@ vector<Point2f> dst_points = {Point2f(0.0, 0.0),
 				              Point2f(560.0, 0.0),
 				              Point2f(560.0, 560.0)};
 vector<Point> map_border = {
-    Point(33,33),
-    Point(530,33),
+    Point(30,30),
+    Point(530,30),
     Point(530,530),
-    Point(33,530)
+    Point(30,530)
 };
+int init_count = 0;
 
 int tarCount = 0;
 int tempTarCount = 0;
@@ -49,6 +51,7 @@ int maincount = 0;
 vector<Point> globalRouth;
 vector<Point> blackPoint;
 string msg;
+extern vector<Mat> show_buffer;
 
 int main()
 {
@@ -79,10 +82,15 @@ int main()
     fd = uart_init("/dev/ttyUSB0", 115200, 8, 'N', 1);
     uart_receiveThread_touch();
 	uart_send(fd, "main init finish\n");
+    // lcd_init();
+
+    // pthread_t tft_id;
+    // int ret = pthread_create(&tft_id, NULL, lcd_show_process, NULL);
+    // pthread_detach(tft_id);
 
     clock_t start, end;
 
-    Mat kernel = getStructuringElement(MORPH_RECT, Size(13, 13));
+    Mat kernel = getStructuringElement(MORPH_RECT, Size(7, 7));
     while(1)
     {   
 		cout << "### 23E  ###" << endl;
@@ -91,6 +99,10 @@ int main()
         cout << "status = " << status << endl;
         if (status == 0)  // 初始化状态，标定坐标点
         {
+            if (capture.get(CAP_PROP_EXPOSURE) <= 100)
+            {
+                capture.set(CAP_PROP_EXPOSURE, 200);
+            }
             //识别绿色标定块
             split(frame, channels);
             red = channels.at(2);
@@ -162,12 +174,15 @@ int main()
             blue = channels.at(0);
 
             red_mask = (max(red-blue, 0)) * 2;
-            threshold(red_mask, red_out, 152, 255, THRESH_BINARY);
+            threshold(red_mask, red_out, 128, 255, THRESH_BINARY);
             dilate(red_out, red_out, kernel);
 
+            imshow("red_out", red_out);
+
             Point tar = get_white_center(&red_out);
+            // tar = getTransformPoint(tar, rotation);
             Point offset = zero - tar;
-            if (abs(offset.x) < 3 &&  abs(offset.y) < 3)  // 结束判定
+            if (abs(offset.x) < 2 &&  abs(offset.y) < 2)  // 结束判定
             {
                 msg = "end";
                 uart_send(fd, msg.c_str());
@@ -191,16 +206,17 @@ int main()
                 msg = to_string(offset.y) + "y";
                 uart_send(fd, msg.c_str());
             }
-
-            circle(frame_warp, tar, 5, Scalar(255,0,0));
+            
+            // circle(frame_warp, tar, 5, Scalar(255,0,0));
             putText(frame,"nowPos=("+to_string(offset.x) + ","+to_string(offset.y)+")",Point(20,60),FONT_HERSHEY_SIMPLEX,1,Scalar(0,0,255),1,2,false);
             imshow("red_out_b1", red_out);
-            imshow("frame_warp", frame_warp);
+            // imshow("frame_warp", frame_warp);
         }
         else if (status == 12)
         {
             // 基础2--寻板子边框
             //识别红色激光点
+
 			warpPerspective(frame, frame_warp, rotation, Size(560, 560));
 
             split(frame_warp, channels);
@@ -211,7 +227,10 @@ int main()
             threshold(red_mask, red_out, 152, 255, THRESH_BINARY);
             dilate(red_out, red_out, kernel);
 
+            imshow("red_out", red_out);
+
             Point now = get_white_center(&red_out);
+            // now = getTransformPoint(now, rotation);
             // 计算路径上所有细分点
             if (globalRouth.size() == 0)
             {
@@ -222,7 +241,7 @@ int main()
                     globalRouth.push_back(map_border[(start_point_idx+i)%map_border.size()]);
                 }
                 // globalRouth = map_border;
-                globalRouth.push_back(map_border[0]);
+                globalRouth.push_back(map_border[start_point_idx]);
             }
             else{
                 Point tar = globalRouth[tempTarCount];
@@ -265,9 +284,15 @@ int main()
         else if (status == 13 || status == 14 || status == 16)
         {
             // 基础三、四--识别黑色电工胶布并沿电工胶布前进
-			warpPerspective(frame, frame_warp, rotation, Size(600, 600));
+			warpPerspective(frame, frame_warp, rotation, Size(560, 560));
+
             if (blackPoint.size() == 0)
             {
+                if (capture.get(CAP_PROP_EXPOSURE) <= 100)
+                {
+                    capture.set(CAP_PROP_EXPOSURE, 200);
+                    continue;
+                }
                 blackPoint = get_black_point(frame_warp, 5000, 80000);
                 // blackPoint.clear();
                 cout << "getting blackPoint" << endl;
@@ -283,7 +308,10 @@ int main()
                 threshold(red_mask, red_out, 152, 255, THRESH_BINARY);
                 dilate(red_out, red_out, kernel);
 
+                imshow("red_out", red_out);
+
                 Point now = get_white_center(&red_out);
+                circle(frame_warp, now, 3, Scalar(255,0,255));
 
                 if (globalRouth.size() == 0)
                 {
@@ -292,7 +320,7 @@ int main()
                     vector<Point> black_sort;
                     for (int i=0; i < blackPoint.size(); i++)
                     {
-                        black_sort.push_back(blackPoint[(start_point_idx+i)%blackPoint.size()]);
+                        black_sort.push_back(blackPoint[(start_point_idx+i+1)%blackPoint.size()]);
                     }
                     globalRouth = get_routh_point(black_sort, subPointNum);
                     // globalRouth = blackPoint;
@@ -305,17 +333,19 @@ int main()
                     Point offset = tar - now;
 
                     Point medianOffset = {0,0};
-                    if (tempTarCount > 4 && globalRouth[tempTarCount+5] != blackPoint[1] 
+                    if (tempTarCount > 1 && globalRouth[tempTarCount+5] != blackPoint[1] 
                         && globalRouth[tempTarCount+5] != blackPoint[2] && tempTarCount < globalRouth.size()-5)
                     {
                         medianOffset = globalRouth[tempTarCount+3] - now;
+                        circle(frame_warp, globalRouth[tempTarCount+3], 3, Scalar(255,0,255));
                     }
                     else{
                         medianOffset = offset;
+                        circle(frame_warp, globalRouth[tempTarCount], 3, Scalar(255,0,255));
                     }
                     // for (int i = 0)
                     
-                    if (tempTarCount > 3)
+                    if (tempTarCount > 1 && tempTarCount < globalRouth.size()-1)
                     {
                         if (abs(offset.x) < 12 &&  abs(offset.y) < 12)  // 达到中间路径点
                         {
@@ -323,7 +353,7 @@ int main()
                         }
                     }
                     else{
-                        if (abs(offset.x) < 2 &&  abs(offset.y) < 2)  // 达到中间路径点
+                        if (abs(offset.x) < 3 &&  abs(offset.y) < 3)  // 达到中间路径点
                         {
                             tempTarCount++;
                         }
@@ -378,10 +408,10 @@ int main()
             }
             cout << "blackPoint=" << blackPoint.size() << endl;
             cout << blackPoint << endl;
-            for (int i=0; i < globalRouth.size(); i++)
-            {
-                circle(frame_warp, globalRouth[i], 3, Scalar(255,0,255));
-            }
+            // for (int i=0; i < globalRouth.size(); i++)
+            // {
+            //     circle(frame_warp, globalRouth[i], 3, Scalar(255,0,255));
+            // }
             imshow("frame_warp", frame_warp);
         }
 
@@ -390,11 +420,12 @@ int main()
         // green = channels.at(1);
         // blue = channels.at(0);
 
-        // blackPoint =  get_black_point(frame, 4000, 50000);
+        // // blackPoint =  get_black_point(frame, 4000, 50000);
 
         // red_mask = (max(red-green, 0)) * 2;
         // threshold(red_mask, red_out, 152, 255, THRESH_BINARY);
         // dilate(red_out, red_out, kernel);
+        // imshow("red_out", red_out);
 
         // green_mask = (max(green-red, 0)) * 3;
         // threshold(green_mask, green_out, 119, 255, THRESH_BINARY);
@@ -409,8 +440,18 @@ int main()
         putText(frame,"status="+to_string(status),Point(20,40),FONT_HERSHEY_SIMPLEX,1,Scalar(0,0,255),1,1,false);
         putText(frame,"fps="+to_string(int(fps)),Point(20,20),FONT_HERSHEY_SIMPLEX,1,Scalar(0,0,255),1,1,false);
         circle(frame, zero, 5, Scalar(255,0,0));
+
+        if (show_buffer.size() == 0)
+        {
+            show_buffer.push_back(frame);
+        }
         
         imshow("frame", frame);
+        // cout << "put img for tft" << endl;
+        //else{
+           // show_buffer[0] = frame;
+        //}
+        
         // imshow("red", red_out);
         // imshow("green", green_out);
         
@@ -421,6 +462,19 @@ int main()
             break;
         }
     }
+}
+
+Point getTransformPoint(Point pt_origin, Mat warpMatrix)
+{
+	Mat_<double> mat_pt(3, 1);
+	mat_pt(0, 0) = pt_origin.x;
+	mat_pt(1, 0) = pt_origin.y;
+	mat_pt(2, 0) = 1;
+	Mat mat_pt_view = warpMatrix * mat_pt;
+	double a1 = mat_pt_view.at<double>(0, 0);
+	double a2 = mat_pt_view.at<double>(1, 0);
+	double a3 = mat_pt_view.at<double>(2, 0);
+	return Point(a1 * 1.0 / a3, a2 * 1.0 / a3);
 }
 
 int get_closest_point(vector<Point> points, Point start)
@@ -529,9 +583,9 @@ Point get_white_center(Mat* img)
 {
     Point center_points = {0, 0}; 
 	int count = 0, R = 0;
-    for (int col=0; col < img->cols; col++)
+    for (int row=0; row < img->rows; row++)
     {
-        for (int row=0; row < img->rows; row++)
+        for (int col=0; col < img->cols; col++)
         {
             R = img->at<uchar>(row, col);
             if (R == 255)
