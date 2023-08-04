@@ -27,6 +27,7 @@ vector<Point> get_routh_point(vector<Point> map, int subPointNum);
 vector<Point> get_black_point(Mat img, int min_area, int max_area);
 int get_closest_point(vector<Point> points, Point start);
 Point getTransformPoint(Point pt_origin, Mat warpMatrix);
+int findSmallestFourDigitNumberIndex(const std::vector<int>& nums);
 
 Point zero = {272,288};
 vector<Point> map_positions;
@@ -38,10 +39,10 @@ vector<Point2f> dst_points = {Point2f(0.0, 0.0),
 				              Point2f(560.0, 0.0),
 				              Point2f(560.0, 560.0)};
 vector<Point> map_border = {
-    Point(30,30),
-    Point(530,30),
-    Point(530,530),
-    Point(30,530)
+    Point(33,33),
+    Point(529,30),
+    Point(529,529),
+    Point(33,530)
 };
 int init_count = 0;
 
@@ -70,7 +71,7 @@ int main()
     capture.set(CAP_PROP_BUFFERSIZE, 1);
     capture.set(CAP_PROP_AUTO_WB, 1);
     capture.set(CAP_PROP_AUTO_EXPOSURE, 1);
-    capture.set(CAP_PROP_EXPOSURE, 200);
+    capture.set(CAP_PROP_EXPOSURE, 170);
     // capture.set(CAP_PROP_WB_TEMPERATURE, 90);
     cout << "CAP_PROP_FPS" << capture.get(CAP_PROP_FPS) << endl;
     cout << "CAP_PROP_BUFFERSIZE=" << capture.get(CAP_PROP_BUFFERSIZE) << endl;
@@ -99,9 +100,9 @@ int main()
         cout << "status = " << status << endl;
         if (status == 0)  // 初始化状态，标定坐标点
         {
-            if (capture.get(CAP_PROP_EXPOSURE) <= 100)
+            if (capture.get(CAP_PROP_EXPOSURE) <= 160)
             {
-                capture.set(CAP_PROP_EXPOSURE, 200);
+                capture.set(CAP_PROP_EXPOSURE, 170);
             }
             //识别绿色标定块
             split(frame, channels);
@@ -114,21 +115,16 @@ int main()
             dilate(green_out, green_out, kernel);
 
             // Point nowzero = {0,0};
-            map_positions = get_map_pos(&green_out);
-            // for (int i = 0; i < map_positions.size(); i++) 
-            // {
-            //     nowzero += map_positions[i];
-            //     cout << map_positions[i] << endl;;
-            // }
-            // nowzero.x = int(nowzero.x / map_positions.size());
-            // nowzero.y = int(nowzero.y / map_positions.size());
-            // zero = nowzero;
+            map_positions = get_map_pos(&green_out);  // 可能会得到其它杂乱点，从中间往外检测过滤
+            
             // cout << "zero = " << zero << endl;
             if (map_positions.size() == 4)
             {
+                cout << "get 5 map_pos" << endl;
                 map_pos_2f.clear();
                 for (int i=0; i<map_positions.size(); i++)
                 {
+                    circle(frame, map_positions[i], 13, Scalar(255,0,255),5);
                     map_pos_2f.push_back(Point2f(map_positions[i].x, map_positions[i].y));
                 }
                 rotation = getPerspectiveTransform(map_pos_2f,dst_points);
@@ -140,12 +136,15 @@ int main()
         {
             // 确认标定(空状态)
             // 清空标定信息外到题目变量
+            if (capture.get(CAP_PROP_EXPOSURE) >= 160)
+            {
+                capture.set(CAP_PROP_EXPOSURE, 100);
+            }
             maincount = 0;
             tempTarCount = 0;
             tarCount = 0;
             globalRouth.clear();
             blackPoint.clear();
-            cout << "map = " << map_pos_2f << endl;
         }
         else if (status == 101)
         {
@@ -247,7 +246,7 @@ int main()
                 Point tar = globalRouth[tempTarCount];
                 Point offset = tar - now;
 
-                if (abs(offset.x) < 3 &&  abs(offset.y) < 3)  // 达到中间路径点
+                if (abs(offset.x) <= 3 &&  abs(offset.y) <= 3)  // 达到中间路径点
                 {
                     tempTarCount++;
                 }
@@ -464,6 +463,21 @@ int main()
     }
 }
 
+int findSmallestFourDigitNumberIndex(const std::vector<int>& nums)
+{
+    int smallestIndex = -1;
+    int smallestNumber = 10000;  // 初始化为一个较大的数
+
+    for (int i = 0; i < nums.size(); ++i) {
+        if (nums[i] >= 1000 && nums[i] < smallestNumber) {
+            smallestNumber = nums[i];
+            smallestIndex = i;
+        }
+    }
+
+    return smallestIndex;
+}
+
 Point getTransformPoint(Point pt_origin, Mat warpMatrix)
 {
 	Mat_<double> mat_pt(3, 1);
@@ -634,7 +648,7 @@ vector<Point> get_blobs_center(Mat img, int min_area, int max_area)
 			center.x /= count;
 			center.y /= count;
 			center_points.push_back(center);
-			circle(frame, center, 3, Scalar(0, 255, 120), -1);
+			// circle(frame, center, 3, Scalar(0, 255, 120), -1);
 			// circle(frame, center, 5, Scalar(0, 255, 120), -1);
 			rectangle(frame, bound.tl(), bound.br(), Scalar(0, 255, 0), 5);
 		}
@@ -645,8 +659,31 @@ vector<Point> get_blobs_center(Mat img, int min_area, int max_area)
 vector<Point> get_map_pos(Mat* img)
 {
 	vector<Point> rec_pos_sort;
-	vector<Point> rec_pos = get_blobs_center(*img, 500, 4000);
+	vector<Point> rec_pos = get_blobs_center(*img, 400, 3000);
+    // 可能会检测到多个绿色色块，从中心点向外遍历得到地图交点
+    int tempxcenter = 320;
+    vector<int> dis2center;
+    vector<Point> ture_map;
+    cout << rec_pos << endl;
+    for (int i=0; i < rec_pos.size(); i++)
+    {
+        cout << rec_pos[i].y << endl;
+        dis2center.push_back(abs(rec_pos[i].x-tempxcenter));
+    }
 
+    int pos_size = dis2center.size();
+    for (int i=0; i < pos_size; i++)
+    {
+        cout << dis2center[i] << endl;
+    }
+    for (int i=0; i < min(4,pos_size); i++)
+    {
+        int idx = min_element(dis2center.begin(), dis2center.end()) - dis2center.begin();
+        ture_map.push_back(rec_pos[idx]);
+        dis2center[idx] = 1000;
+    }
+    rec_pos.clear();
+    rec_pos = ture_map;
 	if (rec_pos.size() == 4)
 	{
 		vector<int> temp;
