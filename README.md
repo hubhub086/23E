@@ -2,11 +2,10 @@
 ## 运动目标控制系统
 ## 运行平台：Jetson Nano 4GB;
 ## Usage
-The following usage is provided for the object cotrol system
-1. Set up a new conda environment and activate it.
+The following usage is provided for the object cotrol system.
    ```bash
-   # clone the 
-   cd build
+   git clone https://github.com/hubhub086/23E  # clone
+   cd 23E/build
    rm -r ./*
    cmake ..
    make
